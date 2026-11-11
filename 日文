@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日語 RPG 學習神作：記憶魔法師</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .pixel-corners {
+            image-rendering: pixelated;
+        }
+        .card-flip {
+            perspective: 1000px;
+        }
+        .card-inner {
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .card-flip.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-front, .card-back {
+            backface-visibility: hidden;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        @keyframes damage-pop {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            50% { transform: translateY(-20px) scale(1.3); }
+            100% { opacity: 0; transform: translateY(-40px) scale(1); }
+        }
+        .damage-float {
+            animation: damage-pop 0.8s ease-out forwards;
+        }
+        .shake {
+            animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-2px, 0, 0); }
+            20%, 80% { transform: translate3d(4px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-6px, 0, 0); }
+            40%, 60% { transform: translate3d(6px, 0, 0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col">
+
+    <!-- Header / Status Bar -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 sticky top-0 z-50 shadow-lg">
+        <div class="max-w-4xl mx-auto flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-2xl font-bold border-2 border-indigo-400">
+                    🧙‍♂️
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-indigo-300">勇者背單字 <span id="player-title" class="text-xs bg-indigo-900 text-indigo-200 px-2 py-0.5 rounded border border-indigo-500">見習魔法師</span></h1>
+                    <div class="flex items-center space-x-2 text-xs text-slate-300 mt-1">
+                        <span>Lv.<span id="player-level">1</span></span>
+                        <div class="w-24 bg-slate-700 h-2 rounded-full overflow-hidden">
+                            <div id="player-exp-bar" class="bg-emerald-500 h-full w-0 transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Badge -->
+            <div class="flex items-center space-x-4 bg-slate-900/80 px-4 py-2 rounded-xl border border-slate-700">
+                <div class="flex items-center space-x-1 text-amber-400">
+                    <i class="fa-solid fa-coins"></i>
+                    <span id="player-gold" class="font-bold">100</span>
+                </div>
+                <div class="flex items-center space-x-1 text-red-400">
+                    <i class="fa-solid fa-heart"></i>
+                    <span id="player-hp">100</span>/<span id="player-max-hp">100</span>
+                </div>
+                <div class="flex items-center space-x-1 text-purple-400 cursor-pointer" onclick="openSrsModal()">
+                    <i class="fa-solid fa-brain"></i>
+                    <span id="srs-count" class="font-bold">0</span> 錯題
+                </div>
+            </div>
+
+            <!-- Pet Banner -->
+            <div id="active-pet" class="hidden md:flex items-center space-x-2 bg-indigo-950/60 border border-indigo-800 px-3 py-1.5 rounded-lg text-xs">
+                <span id="pet-icon" class="text-xl">🐕</span>
+                <div>
+                    <div id="pet-name" class="font-bold text-indigo-300">柴犬夥伴</div>
+                    <div id="pet-buff" class="text-slate-400">30% 護盾防禦</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 max-w-4xl w-full mx-auto p-4 flex flex-col gap-6">
+
+        <!-- Navigation Tabs -->
+        <nav class="flex justify-center bg-slate-800 p-1.5 rounded-xl border border-slate-700 text-sm font-medium">
+            <button onclick="switchTab('map')" id="tab-map" class="flex-1 py-2 px-3 rounded-lg text-center transition-all bg-indigo-600 text-white font-bold">🗺️ 冒險地圖</button>
+            <button onclick="switchTab('shop')" id="tab-shop" class="flex-1 py-2 px-3 rounded-lg text-center transition-all text-slate-400 hover:text-white">🛒 道具商店</button>
+            <button onclick="switchTab('srs')" id="tab-srs" class="flex-1 py-2 px-3 rounded-lg text-center transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1">
+                🧠 錯題魔窟 <span id="badge-srs" class="bg-red-500 text-white text-xs px-1.5 py-0.2 rounded-full hidden">0</span>
+            </button>
+            <button onclick="switchTab('custom')" id="tab-custom" class="flex-1 py-2 px-3 rounded-lg text-center transition-all text-slate-400 hover:text-white">📝 自訂單字</button>
+        </nav>
+
+        <!-- View 1: Map / Stages -->
+        <section id="view-map" class="flex flex-col gap-4">
+            <div class="bg-slate-800/80 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold text-indigo-300">🗺️ 關卡選擇</h2>
+                    <p class="text-xs text-slate-400">按教材課次學習對應單字與文法 Boss 戰</p>
+                </div>
+                <button onclick="claimDailyReward()" id="btn-daily" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all shadow-md">
+                    <i class="fa-solid fa-gift"></i> 每日簽到
+                </button>
+            </div>
+
+            <!-- Stage Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="stage-grid">
+                <!-- Dynamically Generated -->
+            </div>
+        </section>
+
+        <!-- View 2: Battle View -->
+        <section id="view-battle" class="hidden flex-col gap-4">
+            <!-- Enemy Screen -->
+            <div class="relative bg-slate-800 rounded-2xl p-6 border border-slate-700 overflow-hidden flex flex-col items-center justify-between min-h-[260px] shadow-2xl">
+                <!-- Battle FX Overlay -->
+                <div id="battle-fx" class="absolute inset-0 pointer-events-none z-10 flex items-center justify-center"></div>
+                
+                <!-- Stage Header -->
+                <div class="w-full flex justify-between items-center text-xs text-slate-400 border-b border-slate-700/50 pb-2">
+                    <span id="battle-stage-title">第 0 課：五十音村</span>
+                    <span id="battle-mode-tag" class="bg-indigo-900 text-indigo-300 px-2 py-0.5 rounded">聽力戰</span>
+                </div>
+
+                <!-- Enemy Sprite & HP -->
+                <div class="flex flex-col items-center gap-2 my-2 relative">
+                    <div id="enemy-avatar" class="text-7xl transition-transform duration-200">👹</div>
+                    <div class="text-center">
+                        <div id="enemy-name" class="font-bold text-slate-200 text-sm">50音怪魔</div>
+                        <div class="w-48 bg-slate-900 h-3 rounded-full border border-slate-700 overflow-hidden mt-1">
+                            <div id="enemy-hp-bar" class="bg-red-500 h-full w-full transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Question Prompt -->
+                <div class="w-full bg-slate-900/90 p-4 rounded-xl border border-slate-700 text-center relative">
+                    <button onclick="speakCurrentWord()" class="absolute right-3 top-3 text-slate-400 hover:text-indigo-400 text-lg transition-colors" title="收聽發音">
+                        <i class="fa-solid fa-volume-high"></i>
+                    </button>
+                    <div id="question-text" class="text-2xl font-bold text-amber-300 tracking-wider">あ</div>
+                    <div id="question-sub" class="text-xs text-slate-400 mt-1">請選擇對應的羅馬拼音或意思</div>
+                </div>
+            </div>
+
+            <!-- Options & Actions -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="options-grid">
+                <!-- Dynamically Generated Buttons -->
+            </div>
+
+            <div class="flex justify-between items-center mt-2">
+                <button onclick="switchTab('map')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-4 py-2 rounded-lg border border-slate-700 transition-all">
+                    ← 撤退逃跑
+                </button>
+                <div id="combo-display" class="text-xs font-bold text-amber-400 hidden">
+                    🔥 連擊 Combo x<span id="combo-count">0</span> (+<span id="combo-bonus">0</span>% 傷害)
+                </div>
+            </div>
+        </section>
+
+        <!-- View 3: Shop -->
+        <section id="view-shop" class="hidden flex-col gap-4">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <h2 class="text-lg font-bold text-amber-300">🛒 冒險公會裝備商店</h2>
+                <p class="text-xs text-slate-400 mt-0.5">購買裝備提升戰鬥力與獲得召喚獸 Buff</p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="shop-items-grid">
+                <!-- Dynamically Generated Shop Items -->
+            </div>
+        </section>
+
+        <!-- View 4: SRS Custom / Review -->
+        <section id="view-custom" class="hidden flex-col gap-4">
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                <h2 class="text-lg font-bold text-indigo-300">📝 課本與自訂單字庫匯入</h2>
+                <p class="text-xs text-slate-400 mt-1">您可以隨時新增手邊教科書的單字或句型至遊戲中：</p>
+            </div>
+
+            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex flex-col gap-3">
+                <textarea id="custom-import-text" rows="5" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500" placeholder="格式範例 (每行一個單字)：&#10;こんにちは, konnichiwa, 你好&#10;ありがとう, arigatou, 謝謝"></textarea>
+                <button onclick="importCustomWords()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs transition-all align-self-end">
+                    匯入單字庫
+                </button>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="bg-slate-900 border-t border-slate-800 p-4 text-center text-xs text-slate-500">
+        日語 RPG 學習神作 · 艾賓浩斯記憶記憶法整合版
+    </footer>
+
+    <!-- Audio Synth API Script & Main Game Engine Code -->
+    <script>
+        // --- DATA STRUCTURES (Based on uploaded handouts) ---
+        const STAGES = [
+            { id: 0, title: "第 0 課：五十音新手村", desc: "平假名、片假名、濁音、拗音發音挑戰", icon: "🌱", boss: "五十音魔王", minLevel: 1 },
+            { id: 1, title: "第 1 課：自我介紹大樓", desc: "職業、國籍、～は～です 句型對話戰", icon: "🏢", boss: "公司高層 Boss", minLevel: 1 },
+            { id: 2, title: "第 2 課：隨身物品寶藏庫", desc: "指示代名詞 (これ/それ/あれ) 與隨身物品", icon: "📦", boss: "寶箱怪魔", minLevel: 2 },
+            { id: 3, title: "第 3 課：商業市集與算術", desc: "場所 (ここ/どこ) 與金額日圓算術", icon: "💰", boss: "黑心商人 Boss", minLevel: 3 },
+            { id: 4, title: "第 4 課：時時光神殿", desc: "時間 (何時何分)、星期與動詞時態 (～ます)", icon: "⏳", boss: "時間領主", minLevel: 4 },
+            { id: 5, title: "第 5 課：王都鐵道王國", desc: "交通工具、日期 (何月何日) 與往來動詞", icon: "🚆", boss: "鐵道大將軍", minLevel: 5 },
+            { id: 6, title: "第 6 課：日常與魔王城", desc: "日常動作 (～を標示)、邀請 (～
+
+```python?code_reference&code_event_index=1
+# Let's print the rest of the file cleanly or check if the prompt requires anything else.
+# The user wants to resolve the auto-translation issue in GitHub editor when pasting HTML code.
